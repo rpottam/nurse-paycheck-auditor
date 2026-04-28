@@ -66,6 +66,14 @@ export default function Profile() {
                   <span className="text-[#1d1d1f] font-medium">Base Rate</span>
                   <span className="text-[#86868b]">${profile.baseRate.toFixed(2)}/hr</span>
                 </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-[#e5e5ea] pb-5 gap-1">
+                  <span className="text-[#1d1d1f] font-medium">Charge Nurse Premium</span>
+                  <span className="text-[#86868b]">+${(profile.chargeDiff ?? 2).toFixed(2)}/hr</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-[#e5e5ea] pb-5 gap-1">
+                  <span className="text-[#1d1d1f] font-medium">Preceptor Premium</span>
+                  <span className="text-[#86868b]">+${(profile.preceptorDiff ?? 1.5).toFixed(2)}/hr</span>
+                </div>
                 <div className="pt-2">
                   <Link href="/onboarding" className="text-[#0066cc] hover:underline font-medium">
                     Edit Pay Rules

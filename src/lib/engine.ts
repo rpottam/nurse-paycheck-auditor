@@ -50,15 +50,15 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
       rulesApplied.add('holiday_premium');
     }
 
-    // Charge nurse differential
+    // Charge nurse differential (configurable, defaults to $2)
     if (shift.role === 'charge') {
-      baseRate += 2.0;
+      baseRate += profile.chargeDiff ?? 2.0;
       rulesApplied.add('charge_differential');
     }
 
-    // Preceptor differential
+    // Preceptor differential (configurable, defaults to $1.50)
     if (shift.role === 'preceptor') {
-      baseRate += 1.5;
+      baseRate += profile.preceptorDiff ?? 1.5;
       rulesApplied.add('preceptor_differential');
     }
 

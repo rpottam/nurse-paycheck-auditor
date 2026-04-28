@@ -6,6 +6,8 @@ export type UserProfile = {
   weekendDiff: number;
   overtimeRule: '8_80' | 'weekly_40' | 'daily_8' | 'daily_12';
   baylorEnabled?: boolean;
+  chargeDiff?: number;
+  preceptorDiff?: number;
 };
 
 export type Shift = {
