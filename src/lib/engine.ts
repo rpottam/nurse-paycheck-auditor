@@ -74,6 +74,10 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
       straightHours = 8;
       otHours = hours - 8;
       rulesApplied.add('daily_overtime');
+    } else if (profile.overtimeRule === 'daily_12' && hours > 12) {
+      straightHours = 12;
+      otHours = hours - 12;
+      rulesApplied.add('daily_12_overtime');
     } else if (profile.overtimeRule === '8_80' && hours > 8) {
       straightHours = 8;
       otHours = hours - 8;

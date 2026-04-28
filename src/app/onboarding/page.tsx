@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, Building2, UserCircle, DollarSign, Moon, CalendarDays, Clock } from "lucide-react";
 import { UserProfile } from "../../types";
+import { CBA_TEMPLATES } from "../../data/templates";
 
 export default function Onboarding() {
   const router = useRouter();
@@ -28,6 +29,19 @@ export default function Onboarding() {
     setData((prev) => ({ ...prev, ...fields }));
   };
 
+  const handleTemplateSelection = (templateId: string) => {
+    updateData({ hospitalTemplateId: templateId });
+    if (templateId !== "custom") {
+      const template = CBA_TEMPLATES.find(t => t.id === templateId);
+      if (template) {
+        if (template.basePay !== undefined) setRateStr(template.basePay.toString());
+        if (template.nightDiff !== undefined) setNightStr(template.nightDiff.toString());
+        if (template.weekendDiff !== undefined) setWeekendStr(template.weekendDiff.toString());
+        if (template.overtimeRule) updateData({ overtimeRule: template.overtimeRule });
+      }
+    }
+  };
+
   const handleNext = () => {
     if (step === 3) updateData({ baseRate: parseFloat(rateStr) || 0 });
     if (step === 4) updateData({ nightDiff: parseFloat(nightStr) || 0 });
@@ -36,7 +50,12 @@ export default function Onboarding() {
     if (step < totalSteps) {
       setStep((prev) => prev + 1);
     } else {
-      localStorage.setItem("user_profile", JSON.stringify(data));
+      localStorage.setItem("user_profile", JSON.stringify({
+        ...data,
+        baseRate: parseFloat(rateStr) || 0,
+        nightDiff: parseFloat(nightStr) || 0,
+        weekendDiff: parseFloat(weekendStr) || 0,
+      }));
       router.push("/shifts");
     }
   };
@@ -69,11 +88,12 @@ export default function Onboarding() {
           <select 
             className="w-full bg-[#f5f5f7] border-none rounded-[18px] p-5 text-[17px] text-[#1d1d1f] focus:ring-2 focus:ring-[#0066cc] focus:outline-none appearance-none cursor-pointer"
             value={data.hospitalTemplateId}
-            onChange={(e) => updateData({ hospitalTemplateId: e.target.value })}
+            onChange={(e) => handleTemplateSelection(e.target.value)}
           >
             <option value="" disabled>Select a hospital...</option>
-            <option value="kaiser-norcal-cna">Kaiser Permanente NorCal (CNA)</option>
-            <option value="sutter-cna">Sutter Health (CNA)</option>
+            {CBA_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
             <option value="custom">My hospital isn't listed (Custom)</option>
           </select>
         </div>
@@ -103,6 +123,11 @@ export default function Onboarding() {
               {type.label}
             </button>
           ))}
+          {data.employmentType === 'travel' && (
+            <div className="mt-2 p-4 bg-[#f5f5f7] rounded-xl text-[13px] text-[#86868b]">
+              <strong className="text-[#1d1d1f]">Note:</strong> ShiftCheck V1 calculates hourly wages and differentials only. Non-taxable travel stipends are not yet included in the PDF report.
+            </div>
+          )}
         </div>
       )
     },
@@ -115,6 +140,8 @@ export default function Onboarding() {
           <span className="text-[56px] font-semibold text-[#86868b] -mt-2">$</span>
           <input 
             type="number" 
+            inputMode="decimal"
+            pattern="[0-9]*"
             placeholder="0.00"
             className="w-full max-w-[200px] bg-transparent text-[64px] font-semibold text-[#1d1d1f] tracking-tight border-b-2 border-[#d2d2d7] focus:border-[#0066cc] focus:outline-none text-center pb-2 transition-colors"
             value={rateStr}
@@ -132,6 +159,8 @@ export default function Onboarding() {
           <span className="text-[56px] font-semibold text-[#86868b] -mt-2">+$</span>
           <input 
             type="number" 
+            inputMode="decimal"
+            pattern="[0-9]*"
             placeholder="0.00"
             className="w-full max-w-[200px] bg-transparent text-[64px] font-semibold text-[#1d1d1f] tracking-tight border-b-2 border-[#d2d2d7] focus:border-[#0066cc] focus:outline-none text-center pb-2 transition-colors"
             value={nightStr}
@@ -149,6 +178,8 @@ export default function Onboarding() {
           <span className="text-[56px] font-semibold text-[#86868b] -mt-2">+$</span>
           <input 
             type="number" 
+            inputMode="decimal"
+            pattern="[0-9]*"
             placeholder="0.00"
             className="w-full max-w-[200px] bg-transparent text-[64px] font-semibold text-[#1d1d1f] tracking-tight border-b-2 border-[#d2d2d7] focus:border-[#0066cc] focus:outline-none text-center pb-2 transition-colors"
             value={weekendStr}
@@ -166,6 +197,7 @@ export default function Onboarding() {
           {[
             { id: "weekly_40", label: "> 40 hours per week" },
             { id: "daily_8", label: "> 8 hours per day" },
+            { id: "daily_12", label: "> 12 hours per day" },
             { id: "8_80", label: "8/80 Rule (Bi-weekly 80hrs)" }
           ].map((rule) => (
             <button

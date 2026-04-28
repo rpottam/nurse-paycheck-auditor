@@ -13,6 +13,11 @@ export default function Shifts() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [estimatedGross, setEstimatedGross] = useState(0);
 
+  // Pay Period Boundaries
+  const today = new Date().toISOString().split('T')[0];
+  const [periodStart, setPeriodStart] = useState<string>("");
+  const [periodEnd, setPeriodEnd] = useState<string>("");
+
   // PDF Generation State
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [actualGross1, setActualGross1] = useState("");
@@ -31,33 +36,38 @@ export default function Shifts() {
       const parsedShifts = JSON.parse(savedShifts);
       setShifts(parsedShifts);
     }
+    const savedStart = localStorage.getItem("pay_period_start");
+    const savedEnd = localStorage.getItem("pay_period_end");
+    if (savedStart) setPeriodStart(savedStart);
+    if (savedEnd) setPeriodEnd(savedEnd);
   }, []);
 
   const getPayPeriod = (): PayPeriod => {
     return {
       id: "current",
-      startDate: shifts[0]?.date || new Date().toISOString().split('T')[0],
-      endDate: shifts[shifts.length - 1]?.date || new Date().toISOString().split('T')[0],
+      startDate: periodStart || (shifts[0]?.date) || today,
+      endDate: periodEnd || (shifts[shifts.length - 1]?.date) || today,
       shifts: shifts
     };
   };
 
-  // Recalculate whenever shifts or profile changes
+  // Recalculate whenever shifts, boundaries, or profile changes
   useEffect(() => {
-    if (profile && shifts.length > 0) {
+    if (profile && shifts.length > 0 && periodStart && periodEnd) {
       const result = calculatePayPeriod(profile, getPayPeriod());
       setEstimatedGross(result.expectedGross);
     } else {
       setEstimatedGross(0);
     }
-  }, [shifts, profile]);
+  }, [shifts, profile, periodStart, periodEnd]);
 
-  const [newShift, setNewShift] = useState<Partial<Shift>>({
-    date: new Date().toISOString().split('T')[0],
+  const [newShift, setNewShift] = useState<Partial<Shift> & { missedMealBreak: boolean }>({
+    date: today,
     startTime: "07:00",
     endTime: "19:30",
     role: "regular",
-    isHoliday: false
+    isHoliday: false,
+    missedMealBreak: false,
   });
 
   const handleSaveShift = () => {
@@ -70,12 +80,23 @@ export default function Shifts() {
       endTime: newShift.endTime,
       role: (newShift.role as 'regular' | 'charge' | 'preceptor') || "regular",
       isHoliday: newShift.isHoliday || false,
-      breakDeductionMinutes: 30 // standard lunch break deduction
+      breakDeductionMinutes: newShift.missedMealBreak ? 0 : 30 // 0 if missed, 30 standard
     };
     
     const updatedShifts = [...shifts, shiftToAdd].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     setShifts(updatedShifts);
     localStorage.setItem("user_shifts", JSON.stringify(updatedShifts));
+    
+    // Auto-set boundaries if not set
+    if (!periodStart) {
+      setPeriodStart(updatedShifts[0].date);
+      localStorage.setItem("pay_period_start", updatedShifts[0].date);
+    }
+    if (!periodEnd) {
+      setPeriodEnd(updatedShifts[updatedShifts.length - 1].date);
+      localStorage.setItem("pay_period_end", updatedShifts[updatedShifts.length - 1].date);
+    }
+
     setIsAdding(false);
   };
 
@@ -102,24 +123,16 @@ export default function Shifts() {
       return;
     }
 
-    const diffPercent = Math.abs(actual - estimatedGross) / estimatedGross;
-    if (diffPercent > 0.25) {
-       // Just a warning log in real app, we will let it proceed for demo
-       console.warn("25% Delta Warning: The actual entered gross is implausibly different from expected.");
-    }
-
     if (!profile || shifts.length === 0) return;
 
     setIsGenerating(true);
     try {
       const pdfBytes = await generateDisputeReport(profile, getPayPeriod(), actual);
-      
-      // Trigger download
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Dispute_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      link.download = `Dispute_Report_${today}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
       setShowPdfModal(false);
@@ -146,15 +159,52 @@ export default function Shifts() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
+        
+        {/* Pay Period Bounds */}
+        <div className="bg-white rounded-[24px] p-5 mb-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-[#E5E5EA] flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="w-full sm:w-auto">
+             <label className="text-[12px] font-semibold text-[#86868B] uppercase tracking-wider mb-1 block">Start Date</label>
+             <input 
+                type="date"
+                value={periodStart}
+                onChange={(e) => {
+                  setPeriodStart(e.target.value);
+                  localStorage.setItem("pay_period_start", e.target.value);
+                }}
+                className="bg-[#F5F5F7] border border-transparent rounded-xl px-3 py-2 text-[15px] focus:outline-none focus:border-[#0066CC] w-full"
+             />
+          </div>
+          <div className="hidden sm:block text-[#86868B]">to</div>
+          <div className="w-full sm:w-auto">
+             <label className="text-[12px] font-semibold text-[#86868B] uppercase tracking-wider mb-1 block">End Date</label>
+             <input 
+                type="date"
+                value={periodEnd}
+                onChange={(e) => {
+                  setPeriodEnd(e.target.value);
+                  localStorage.setItem("pay_period_end", e.target.value);
+                }}
+                className="bg-[#F5F5F7] border border-transparent rounded-xl px-3 py-2 text-[15px] focus:outline-none focus:border-[#0066CC] w-full"
+             />
+          </div>
+        </div>
+
         {/* Gross Card */}
         <div className="bg-white rounded-3xl p-8 mb-8 shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-[#E5E5EA]">
           <div className="flex flex-col items-center justify-center text-center mb-8">
             <p className="text-[13px] font-medium text-[#86868B] uppercase tracking-widest mb-2">Estimated Gross</p>
             <div className="flex items-start justify-center gap-1">
               <span className="text-[32px] font-medium text-[#1D1D1F] mt-2">$</span>
-              <span className="text-[64px] font-semibold tracking-tight leading-none text-[#1D1D1F]">{estimatedGross.toFixed(2)}</span>
+              <span className="text-[64px] font-semibold tracking-tight leading-none text-[#1D1D1F]">
+                {(!periodStart || !periodEnd) ? "0.00" : estimatedGross.toFixed(2)}
+              </span>
             </div>
-            <p className="text-[13px] text-[#86868B] mt-3">Before taxes and deductions</p>
+            {(!periodStart || !periodEnd) && (
+              <p className="text-[13px] text-[#ff3b30] mt-3 font-medium">Please select Pay Period Start and End Dates above.</p>
+            )}
+            {(periodStart && periodEnd) && (
+              <p className="text-[13px] text-[#86868B] mt-3">Before taxes and deductions</p>
+            )}
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3">
@@ -163,8 +213,8 @@ export default function Shifts() {
               Show the Math
             </button>
             <button 
-              onClick={() => shifts.length > 0 && setShowPdfModal(true)}
-              className={`flex-1 rounded-2xl py-3.5 flex justify-center items-center gap-2 text-[15px] font-medium transition-colors ${shifts.length > 0 ? 'bg-[#0066CC] hover:bg-[#0055B3] text-white' : 'bg-[#e5e5ea] text-[#86868b] cursor-not-allowed'}`}
+              onClick={() => shifts.length > 0 && periodStart && periodEnd && setShowPdfModal(true)}
+              className={`flex-1 rounded-2xl py-3.5 flex justify-center items-center gap-2 text-[15px] font-medium transition-colors ${(shifts.length > 0 && periodStart && periodEnd) ? 'bg-[#0066CC] hover:bg-[#0055B3] text-white' : 'bg-[#e5e5ea] text-[#86868b] cursor-not-allowed'}`}
             >
               <Download className="w-5 h-5" />
               HR Dispute Report
@@ -223,6 +273,7 @@ export default function Shifts() {
                     <div className="text-[13px] text-[#86868B] flex items-center gap-1 capitalize">
                       <Clock className="w-3.5 h-3.5" />
                       {shift.role}
+                      {shift.breakDeductionMinutes === 0 && " • No Lunch"}
                     </div>
                   </div>
                 </div>
@@ -275,8 +326,8 @@ export default function Shifts() {
               </div>
             </div>
             
-            <div className="flex gap-3 mb-8">
-              <label className="flex items-center gap-2 bg-[#F5F5F7] px-4 py-3 rounded-xl cursor-pointer hover:bg-[#E8E8ED] flex-1 transition-colors">
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              <label className="flex items-center gap-2 bg-[#F5F5F7] px-4 py-3 rounded-xl cursor-pointer hover:bg-[#E8E8ED] transition-colors col-span-1">
                 <input 
                   type="checkbox" 
                   checked={newShift.isHoliday}
@@ -285,15 +336,25 @@ export default function Shifts() {
                 />
                 <span className="text-[15px] text-[#1D1D1F]">Holiday</span>
               </label>
+
+              <label className="flex items-center gap-2 bg-[#F5F5F7] px-4 py-3 rounded-xl cursor-pointer hover:bg-[#E8E8ED] transition-colors col-span-1">
+                <input 
+                  type="checkbox" 
+                  checked={newShift.missedMealBreak}
+                  onChange={(e) => setNewShift({...newShift, missedMealBreak: e.target.checked})}
+                  className="accent-[#0066CC] w-[18px] h-[18px]"
+                />
+                <span className="text-[15px] text-[#1D1D1F]">No Lunch (-0min)</span>
+              </label>
               
               <select 
                 value={newShift.role}
                 onChange={(e) => setNewShift({...newShift, role: e.target.value as "regular" | "charge" | "preceptor"})}
-                className="bg-[#F5F5F7] px-4 py-3 rounded-xl text-[15px] text-[#1D1D1F] focus:outline-none focus:ring-1 focus:ring-[#0066CC] flex-1 appearance-none cursor-pointer"
+                className="col-span-2 bg-[#F5F5F7] px-4 py-3 rounded-xl text-[15px] text-[#1D1D1F] focus:outline-none focus:ring-1 focus:ring-[#0066CC] appearance-none cursor-pointer"
               >
-                <option value="regular">Regular</option>
-                <option value="charge">Charge</option>
-                <option value="preceptor">Preceptor</option>
+                <option value="regular">Regular RN</option>
+                <option value="charge">Charge RN</option>
+                <option value="preceptor">Preceptor RN</option>
               </select>
             </div>
             
@@ -344,6 +405,7 @@ export default function Shifts() {
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#86868b] font-medium">$</span>
                   <input 
                     type="number" 
+                    inputMode="decimal"
                     value={actualGross1}
                     onChange={(e) => setActualGross1(e.target.value)}
                     placeholder="0.00"
@@ -358,6 +420,7 @@ export default function Shifts() {
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#86868b] font-medium">$</span>
                   <input 
                     type="number" 
+                    inputMode="decimal"
                     value={actualGross2}
                     onChange={(e) => setActualGross2(e.target.value)}
                     placeholder="0.00"

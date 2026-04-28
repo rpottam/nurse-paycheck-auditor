@@ -72,7 +72,9 @@ export default function SingleShiftCalculator() {
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#86868b] font-medium">$</span>
                 <input 
-                  type="number" 
+                  type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
                   value={data.baseRate}
                   onChange={(e) => setData({...data, baseRate: e.target.value})}
                   className="w-full bg-[#f5f5f7] border-none rounded-[16px] pl-8 pr-4 py-3.5 text-[17px] text-[#1d1d1f] focus:ring-2 focus:ring-[#0066cc] focus:outline-none focus:bg-white transition-colors"
@@ -83,7 +85,9 @@ export default function SingleShiftCalculator() {
             <div className="space-y-3">
               <label className="text-[15px] font-medium text-[#1d1d1f]">Hours Worked</label>
               <input 
-                type="number" 
+                type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 value={data.hoursWorked}
                 onChange={(e) => setData({...data, hoursWorked: e.target.value})}
                 className="w-full bg-[#f5f5f7] border-none rounded-[16px] px-4 py-3.5 text-[17px] text-[#1d1d1f] focus:ring-2 focus:ring-[#0066cc] focus:outline-none focus:bg-white transition-colors"
