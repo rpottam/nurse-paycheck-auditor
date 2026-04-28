@@ -129,6 +129,21 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
      });
   }
 
+  // Baylor Pay Logic
+  if (profile.baylorEnabled && totalRegularHours >= 36 && totalRegularHours < 40) {
+    const baylorHours = 40 - totalRegularHours;
+    const baylorAmount = baylorHours * profile.baseRate;
+    totalGross += baylorAmount;
+    
+    rulesApplied.add('baylor_bonus');
+    lineItems.push({
+      description: `Baylor Weekend Bonus (36 = 40)`,
+      hours: baylorHours,
+      rate: profile.baseRate,
+      amount: baylorAmount
+    });
+  }
+
   return {
     expectedGross: totalGross,
     lineItems,

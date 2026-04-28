@@ -197,9 +197,18 @@ export default function SingleShiftCalculator() {
             </div>
             
             <div className="p-5 bg-white border border-[#e5e5ea] rounded-2xl mb-8">
-              <p className="text-[15px] text-[#86868b] leading-relaxed">
-                <span className="font-semibold text-[#1d1d1f]">Did this match your paystub?</span> If not, your hospital might be misapplying complex rules.
-              </p>
+              <div className="bg-[#f5f5f7] rounded-[24px] p-6 text-center border border-[#e5e5ea]">
+                <h3 className="text-[17px] font-semibold text-[#1d1d1f] mb-2">Want the line-by-line breakdown?</h3>
+                <p className="text-[14px] text-[#86868b] mb-4">
+                  ShiftCheck Premium audits entire 80-hour pay periods, tracks complex rules like Baylor and 8/80, and generates HR Dispute PDF Reports to get your money back.
+                </p>
+                <Link 
+                  href="/upgrade" 
+                  className="inline-block bg-[#0066cc] text-white px-6 py-2.5 rounded-full text-[15px] font-medium hover:bg-[#0055b3] transition-colors"
+                >
+                  Upgrade to Premium
+                </Link>
+              </div>
             </div>
             
             <Link 

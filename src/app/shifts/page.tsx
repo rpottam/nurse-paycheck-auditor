@@ -1,32 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Plus, Calculator, Calendar, Clock, Download, FileText, Trash2, X } from "lucide-react";
-import { calculatePayPeriod } from "../../lib/engine";
+import { Plus, Calculator, Calendar, Clock, Download, FileText, Trash2, X, Share } from "lucide-react";
+import { calculatePayPeriod, AuditResult } from "../../lib/engine";
 import { generateDisputeReport } from "../../lib/pdfGenerator";
 import { Shift, UserProfile, PayPeriod } from "../../types";
+import html2canvas from "html2canvas";
 
 export default function Shifts() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [estimatedGross, setEstimatedGross] = useState(0);
+  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
 
   // Pay Period Boundaries
   const today = new Date().toISOString().split('T')[0];
   const [periodStart, setPeriodStart] = useState<string>("");
   const [periodEnd, setPeriodEnd] = useState<string>("");
 
-  // PDF Generation State
+  // Modals & PDF State
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showMathModal, setShowMathModal] = useState(false);
   const [actualGross1, setActualGross1] = useState("");
   const [actualGross2, setActualGross2] = useState("");
   const [pdfError, setPdfError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Ref for viral PNG capture
+  const viralCardRef = useRef<HTMLDivElement>(null);
 
   // Load state on mount
   useEffect(() => {
+    // Check premium access
+    if (!localStorage.getItem("shiftcheck_premium")) {
+      window.location.href = "/upgrade";
+      return;
+    }
+
     const savedProfile = localStorage.getItem("user_profile");
     if (savedProfile) {
       setProfile(JSON.parse(savedProfile));
@@ -55,9 +66,9 @@ export default function Shifts() {
   useEffect(() => {
     if (profile && shifts.length > 0 && periodStart && periodEnd) {
       const result = calculatePayPeriod(profile, getPayPeriod());
-      setEstimatedGross(result.expectedGross);
+      setAuditResult(result);
     } else {
-      setEstimatedGross(0);
+      setAuditResult(null);
     }
   }, [shifts, profile, periodStart, periodEnd]);
 
@@ -80,14 +91,13 @@ export default function Shifts() {
       endTime: newShift.endTime,
       role: (newShift.role as 'regular' | 'charge' | 'preceptor') || "regular",
       isHoliday: newShift.isHoliday || false,
-      breakDeductionMinutes: newShift.missedMealBreak ? 0 : 30 // 0 if missed, 30 standard
+      breakDeductionMinutes: newShift.missedMealBreak ? 0 : 30
     };
     
     const updatedShifts = [...shifts, shiftToAdd].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     setShifts(updatedShifts);
     localStorage.setItem("user_shifts", JSON.stringify(updatedShifts));
     
-    // Auto-set boundaries if not set
     if (!periodStart) {
       setPeriodStart(updatedShifts[0].date);
       localStorage.setItem("pay_period_start", updatedShifts[0].date);
@@ -144,6 +154,20 @@ export default function Shifts() {
     }
   };
 
+  const generateViralGraphic = async () => {
+    if (!viralCardRef.current) return;
+    try {
+      const canvas = await html2canvas(viralCardRef.current, { scale: 3, backgroundColor: null });
+      const image = canvas.toDataURL("image/png");
+      const link = document.createElement('a');
+      link.href = image;
+      link.download = `ShiftCheck_Audit_${today}.png`;
+      link.click();
+    } catch (err) {
+      console.error("Failed to generate graphic", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] font-sans selection:bg-[#0066CC] selection:text-white pb-32">
       {/* Top Navbar */}
@@ -152,7 +176,7 @@ export default function Shifts() {
           <div className="flex items-center gap-3">
             <h1 className="text-[21px] font-semibold tracking-tight text-[#1D1D1F]">Pay Period</h1>
           </div>
-          <Link href="/profile" className="text-[#0066CC] text-[15px] hover:underline">
+          <Link href="/profile" className="text-[#0066CC] text-[15px] hover:underline font-medium">
             Profile
           </Link>
         </div>
@@ -189,14 +213,36 @@ export default function Shifts() {
           </div>
         </div>
 
+        {/* Viral Card (Hidden until exported, but rendered for html2canvas) */}
+        {auditResult && (
+          <div className="absolute top-[-9999px] left-[-9999px]">
+            <div ref={viralCardRef} className="bg-gradient-to-br from-[#1d1d1f] to-[#000000] text-white p-10 rounded-[40px] w-[500px] shadow-2xl flex flex-col items-center text-center">
+              <h2 className="text-[28px] font-semibold tracking-tight text-[#f5f5f7] mb-2 opacity-80">My Expected Gross</h2>
+              <div className="flex items-start justify-center gap-2 mb-8">
+                <span className="text-[40px] font-semibold text-[#86868b] mt-2">$</span>
+                <span className="text-[96px] font-semibold tracking-tight leading-none text-white">
+                  {auditResult.expectedGross.toFixed(2)}
+                </span>
+              </div>
+              <div className="w-full bg-white/10 rounded-2xl p-6 mb-8 text-left">
+                <p className="text-[17px] font-medium text-white mb-2">Hospital: {profile?.hospitalTemplateId === 'custom' ? 'Custom' : 'Pre-loaded CBA'}</p>
+                <p className="text-[15px] text-[#a1a1a6]">Shifts logged: {shifts.length}</p>
+                <p className="text-[15px] text-[#a1a1a6]">Base rate: ${profile?.baseRate}/hr</p>
+              </div>
+              <p className="text-[24px] font-semibold mb-2">Did HR underpay me?</p>
+              <p className="text-[15px] text-[#a1a1a6] tracking-widest uppercase mt-4 opacity-50">Audited via ShiftCheck</p>
+            </div>
+          </div>
+        )}
+
         {/* Gross Card */}
-        <div className="bg-white rounded-3xl p-8 mb-8 shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-[#E5E5EA]">
+        <div className="bg-white rounded-[32px] p-8 mb-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[#E5E5EA]">
           <div className="flex flex-col items-center justify-center text-center mb-8">
             <p className="text-[13px] font-medium text-[#86868B] uppercase tracking-widest mb-2">Estimated Gross</p>
             <div className="flex items-start justify-center gap-1">
               <span className="text-[32px] font-medium text-[#1D1D1F] mt-2">$</span>
               <span className="text-[64px] font-semibold tracking-tight leading-none text-[#1D1D1F]">
-                {(!periodStart || !periodEnd) ? "0.00" : estimatedGross.toFixed(2)}
+                {(!periodStart || !periodEnd || !auditResult) ? "0.00" : auditResult.expectedGross.toFixed(2)}
               </span>
             </div>
             {(!periodStart || !periodEnd) && (
@@ -208,7 +254,10 @@ export default function Shifts() {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3">
-            <button className="flex-1 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] rounded-2xl py-3.5 flex justify-center items-center gap-2 text-[15px] font-medium transition-colors">
+            <button 
+              onClick={() => shifts.length > 0 && periodStart && periodEnd && setShowMathModal(true)}
+              className={`flex-1 rounded-2xl py-3.5 flex justify-center items-center gap-2 text-[15px] font-medium transition-colors ${(shifts.length > 0 && periodStart && periodEnd) ? 'bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F]' : 'bg-[#e5e5ea] text-[#86868b] cursor-not-allowed'}`}
+            >
               <Calculator className="w-5 h-5" />
               Show the Math
             </button>
@@ -219,6 +268,17 @@ export default function Shifts() {
               <Download className="w-5 h-5" />
               HR Dispute Report
             </button>
+          </div>
+          
+          {/* Share Button for Viral Loop */}
+          <div className="mt-4 flex justify-center">
+             <button 
+                onClick={generateViralGraphic}
+                disabled={!auditResult}
+                className="flex items-center gap-1.5 text-[14px] font-medium text-[#0066cc] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+                <Share className="w-4 h-4" /> Share my Audit
+             </button>
           </div>
         </div>
 
@@ -233,7 +293,7 @@ export default function Shifts() {
         </div>
 
         {shifts.length === 0 && !isAdding ? (
-          <div className="bg-white rounded-3xl p-12 flex flex-col items-center justify-center text-center shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-[#E5E5EA]">
+          <div className="bg-white rounded-[32px] p-12 flex flex-col items-center justify-center text-center shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-[#E5E5EA]">
             <div className="w-16 h-16 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
               <Calendar className="w-8 h-8 text-[#86868B]" />
             </div>
@@ -243,7 +303,7 @@ export default function Shifts() {
             </p>
             <button 
               onClick={() => setIsAdding(true)}
-              className="bg-[#0066CC] text-white px-6 py-3 rounded-full text-[15px] font-medium hover:bg-[#0055B3] transition-colors"
+              className="bg-[#0066CC] text-white px-6 py-3 rounded-full text-[15px] font-medium hover:bg-[#0055B3] transition-colors shadow-[0_4px_14px_rgba(0,102,204,0.3)]"
             >
               Add first shift
             </button>
@@ -251,9 +311,9 @@ export default function Shifts() {
         ) : (
           <div className="flex flex-col gap-3">
             {shifts.map((shift) => (
-              <div key={shift.id} className="bg-white border border-[#E5E5EA] rounded-2xl p-4 flex items-center justify-between group hover:shadow-[0_2px_10px_rgba(0,0,0,0.04)] transition-all">
+              <div key={shift.id} className="bg-white border border-[#E5E5EA] rounded-[24px] p-5 flex items-center justify-between group hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all">
                 <div className="flex items-center gap-4">
-                  <div className="w-[52px] h-[52px] rounded-xl bg-[#F5F5F7] flex flex-col items-center justify-center text-center">
+                  <div className="w-[52px] h-[52px] rounded-[14px] bg-[#F5F5F7] flex flex-col items-center justify-center text-center">
                     <span className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">
                       {new Date(shift.date).toLocaleDateString('en-US', { weekday: 'short' })}
                     </span>
@@ -265,7 +325,7 @@ export default function Shifts() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[17px] font-medium text-[#1D1D1F]">{shift.startTime} - {shift.endTime}</span>
                       {shift.isHoliday && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#FCECD9] text-[#E58215]">
+                        <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-[#FCECD9] text-[#E58215]">
                           HOLIDAY
                         </span>
                       )}
@@ -288,7 +348,7 @@ export default function Shifts() {
 
         {/* Add Shift Inline Form */}
         {isAdding && (
-          <div className="mt-4 bg-white border border-[#E5E5EA] rounded-3xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+          <div className="mt-4 bg-white border border-[#E5E5EA] rounded-[32px] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.08)] animate-in fade-in slide-in-from-top-4 duration-300">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-[19px] font-semibold text-[#1D1D1F] tracking-tight">New Shift</h3>
               <button onClick={() => setIsAdding(false)} className="text-[15px] text-[#0066CC] hover:underline">Cancel</button>
@@ -344,7 +404,7 @@ export default function Shifts() {
                   onChange={(e) => setNewShift({...newShift, missedMealBreak: e.target.checked})}
                   className="accent-[#0066CC] w-[18px] h-[18px]"
                 />
-                <span className="text-[15px] text-[#1D1D1F]">No Lunch (-0min)</span>
+                <span className="text-[15px] text-[#1D1D1F]">No Lunch</span>
               </label>
               
               <select 
@@ -360,7 +420,7 @@ export default function Shifts() {
             
             <button 
               onClick={handleSaveShift}
-              className="w-full bg-[#0066CC] text-white text-[17px] font-medium py-3.5 rounded-xl hover:bg-[#0055B3] transition-colors"
+              className="w-full bg-[#0066CC] text-white text-[17px] font-medium py-3.5 rounded-full shadow-[0_4px_14px_rgba(0,102,204,0.3)] hover:bg-[#0055B3] transition-colors"
             >
               Add Shift
             </button>
@@ -376,6 +436,40 @@ export default function Shifts() {
         >
           <Plus className="w-6 h-6" strokeWidth={2.5} />
         </button>
+      )}
+
+      {/* Show Math Modal */}
+      {showMathModal && auditResult && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4">
+          <div className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-lg p-6 sm:p-8 shadow-2xl relative animate-in slide-in-from-bottom-full sm:zoom-in duration-300 max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-[21px] font-semibold tracking-tight text-[#1d1d1f]">Math Breakdown</h3>
+              <button 
+                onClick={() => setShowMathModal(false)}
+                className="w-8 h-8 bg-[#f5f5f7] rounded-full flex items-center justify-center text-[#86868b] hover:text-[#1d1d1f] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+              {auditResult.lineItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center border-b border-[#f5f5f7] pb-3">
+                  <div className="flex flex-col">
+                    <span className="text-[15px] font-medium text-[#1d1d1f]">{item.description}</span>
+                    <span className="text-[13px] text-[#86868b]">{item.hours.toFixed(2)} hrs @ ${item.rate.toFixed(2)}/hr</span>
+                  </div>
+                  <span className="text-[17px] font-semibold text-[#1d1d1f]">${item.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            
+            <div className="mt-6 pt-4 border-t border-[#e5e5ea] flex justify-between items-center bg-[#f5f5f7] p-4 rounded-[16px]">
+              <span className="text-[17px] font-medium text-[#1d1d1f]">Expected Gross</span>
+              <span className="text-[24px] font-semibold text-[#1d1d1f]">${auditResult.expectedGross.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* PDF Generation Modal */}
@@ -406,6 +500,7 @@ export default function Shifts() {
                   <input 
                     type="number" 
                     inputMode="decimal"
+                    pattern="[0-9]*"
                     value={actualGross1}
                     onChange={(e) => setActualGross1(e.target.value)}
                     placeholder="0.00"
@@ -421,6 +516,7 @@ export default function Shifts() {
                   <input 
                     type="number" 
                     inputMode="decimal"
+                    pattern="[0-9]*"
                     value={actualGross2}
                     onChange={(e) => setActualGross2(e.target.value)}
                     placeholder="0.00"
@@ -437,7 +533,7 @@ export default function Shifts() {
             <button 
               onClick={handleGeneratePdf}
               disabled={isGenerating}
-              className={`w-full text-white text-[17px] font-medium py-3.5 rounded-full transition-colors flex items-center justify-center gap-2 ${isGenerating ? 'bg-[#0066cc]/50 cursor-not-allowed' : 'bg-[#0066cc] hover:bg-[#0055b3]'}`}
+              className={`w-full text-white text-[17px] font-medium py-3.5 rounded-full transition-colors flex items-center justify-center gap-2 ${isGenerating ? 'bg-[#0066cc]/50 cursor-not-allowed' : 'bg-[#0066cc] hover:bg-[#0055b3] shadow-[0_4px_14px_rgba(0,102,204,0.3)]'}`}
             >
               {isGenerating ? "Generating..." : "Generate Dispute Report"}
             </button>

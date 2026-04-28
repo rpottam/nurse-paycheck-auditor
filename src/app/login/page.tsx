@@ -22,6 +22,12 @@ export default function Login() {
       // Local-first mock auth
       localStorage.setItem("shiftcheck_auth", "true");
       
+      const isPremium = localStorage.getItem("shiftcheck_premium");
+      if (!isPremium) {
+        router.push("/upgrade");
+        return;
+      }
+
       const savedProfile = localStorage.getItem("user_profile");
       if (savedProfile) {
         router.push("/shifts");

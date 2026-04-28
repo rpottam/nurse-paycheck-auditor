@@ -212,6 +212,18 @@ export default function Onboarding() {
               {rule.label}
             </button>
           ))}
+          
+          <div className="mt-4 pt-4 border-t border-[#e5e5ea]">
+            <label className="flex items-center gap-3 cursor-pointer p-2 hover:bg-[#f5f5f7] rounded-xl transition-colors">
+              <input 
+                type="checkbox" 
+                checked={data.baylorEnabled || false}
+                onChange={(e) => updateData({ baylorEnabled: e.target.checked })}
+                className="w-5 h-5 accent-[#0066cc]"
+              />
+              <span className="text-[15px] font-medium text-[#1d1d1f]">Baylor Plan (Work 36, Paid 40)</span>
+            </label>
+          </div>
         </div>
       )
     }
