@@ -65,22 +65,25 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     // Determine night differential based on shift start time
     const startHour = parseInt(shift.startTime.split(':')[0]);
     const isNight = startHour >= 19 || startHour < 7;
-    let effectiveRate = baseRate * shiftMultiplier;
 
     if (isNight && profile.nightDiff) {
-      effectiveRate += profile.nightDiff;
+      baseRate += profile.nightDiff;
       rulesApplied.add('night_differential');
     }
 
     // Weekend differential — check day of week (0=Sun, 6=Sat)
     const shiftDate = parse(shift.date, 'yyyy-MM-dd', new Date());
     const dayOfWeek = getDay(shiftDate);
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
     if (isWeekend && profile.weekendDiff) {
-      effectiveRate += profile.weekendDiff;
+      baseRate += profile.weekendDiff;
       rulesApplied.add('weekend_differential');
     }
+
+    // Apply holiday multiplier AFTER all diffs are added to base
+    // This matches CBA standard: holiday premium applies to full effective rate
+    let effectiveRate = baseRate * shiftMultiplier;
 
     // Calculate daily overtime
     let straightHours = hours;

@@ -48,7 +48,7 @@ export default function Methodology() {
               Differentials are <strong>additive</strong> and <strong>stack</strong>. The effective hourly rate for any shift is:
             </p>
             <div className="bg-[#f5f5f7] rounded-2xl p-5 mb-4 font-mono text-[14px]">
-              effectiveRate = (baseRate + chargeDiff + preceptorDiff) × holidayMultiplier + nightDiff + weekendDiff
+              effectiveRate = (baseRate + chargeDiff + preceptorDiff + nightDiff + weekendDiff) × holidayMultiplier
             </div>
             <div className="space-y-3 text-[15px]">
               <div className="flex items-start gap-3">
@@ -61,7 +61,7 @@ export default function Methodology() {
               </div>
               <div className="flex items-start gap-3">
                 <span className="font-semibold min-w-[140px]">Holiday premium</span>
-                <span className="text-[#86868b]">Applied as a 1.5× multiplier to the base rate before differentials are added. User-toggled per shift.</span>
+                <span className="text-[#86868b]">Applied as a 1.5× multiplier to the full effective rate (base + all differentials). This matches CBA standard where holiday pay covers the entire compensation package. User-toggled per shift.</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="font-semibold min-w-[140px]">Charge RN</span>
@@ -133,7 +133,7 @@ export default function Methodology() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[#ff9500] mt-1">⚠</span>
-                <span><strong>Float pool / per-shift rates:</strong> Nurses who float to different units at different rates need per-shift rate entry. Planned for v0.2.</span>
+                <span><strong>Float pool / per-shift rates:</strong> Per-shift rate overrides are supported via the <code className="bg-white px-1 rounded">rateOverride</code> field. UI for setting per-shift rates from the shift logger is planned for v0.2.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[#ff9500] mt-1">⚠</span>
