@@ -19,6 +19,7 @@ export type Shift = {
   isHoliday: boolean;
   isBaylorWeekend?: boolean;
   breakDeductionMinutes: number;
+  rateOverride?: number; // For float pool: per-shift rate instead of profile base
 };
 
 export type PayPeriod = {

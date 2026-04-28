@@ -40,8 +40,8 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
       continue;
     }
 
-    // Apply base rate
-    let baseRate = profile.baseRate;
+    // Apply base rate (per-shift override for float pool, else profile base)
+    let baseRate = shift.rateOverride ?? profile.baseRate;
     let shiftMultiplier = 1;
 
     // Check holiday
