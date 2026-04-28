@@ -1,5 +1,5 @@
 import { Shift, UserProfile, PayPeriod } from '../types';
-import { differenceInMinutes, parse, format, isAfter, isBefore } from 'date-fns';
+import { differenceInMinutes, parse, format, isAfter, isBefore, getDay } from 'date-fns';
 
 export type LineItem = {
   description: string;
@@ -12,12 +12,14 @@ export type AuditResult = {
   expectedGross: number;
   lineItems: LineItem[];
   rulesApplied: string[];
+  warnings: string[];
 };
 
 export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): AuditResult {
   let totalGross = 0;
   const lineItems: LineItem[] = [];
   const rulesApplied = new Set<string>();
+  const warnings: string[] = [];
 
   let totalRegularHours = 0;
 
@@ -33,7 +35,10 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     let minutes = differenceInMinutes(end, start) - shift.breakDeductionMinutes;
     let hours = minutes / 60;
     
-    if (hours <= 0) continue;
+    if (hours <= 0) {
+      warnings.push(`Shift on ${shift.date} has zero or negative hours after break deduction. Skipped.`);
+      continue;
+    }
 
     // Apply base rate
     let baseRate = profile.baseRate;
@@ -42,28 +47,39 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     // Check holiday
     if (shift.isHoliday) {
       shiftMultiplier = 1.5;
-      rulesApplied.add('holiday_multiplier');
+      rulesApplied.add('holiday_premium');
     }
 
     // Charge nurse differential
     if (shift.role === 'charge') {
-      baseRate += 2.0; // Mock charge diff
+      baseRate += 2.0;
       rulesApplied.add('charge_differential');
     }
 
     // Preceptor differential
     if (shift.role === 'preceptor') {
-      baseRate += 1.5; // Mock preceptor diff
+      baseRate += 1.5;
       rulesApplied.add('preceptor_differential');
     }
 
-    // Determine differentials based on shift times (simplified for MVP)
-    const isNight = parseInt(shift.startTime.split(':')[0]) >= 19 || parseInt(shift.startTime.split(':')[0]) < 7;
+    // Determine night differential based on shift start time
+    const startHour = parseInt(shift.startTime.split(':')[0]);
+    const isNight = startHour >= 19 || startHour < 7;
     let effectiveRate = baseRate * shiftMultiplier;
 
     if (isNight && profile.nightDiff) {
       effectiveRate += profile.nightDiff;
       rulesApplied.add('night_differential');
+    }
+
+    // Weekend differential — check day of week (0=Sun, 6=Sat)
+    const shiftDate = parse(shift.date, 'yyyy-MM-dd', new Date());
+    const dayOfWeek = getDay(shiftDate);
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
+
+    if (isWeekend && profile.weekendDiff) {
+      effectiveRate += profile.weekendDiff;
+      rulesApplied.add('weekend_differential');
     }
 
     // Calculate daily overtime
@@ -73,7 +89,7 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     if (profile.overtimeRule === 'daily_8' && hours > 8) {
       straightHours = 8;
       otHours = hours - 8;
-      rulesApplied.add('daily_overtime');
+      rulesApplied.add('daily_8_overtime');
     } else if (profile.overtimeRule === 'daily_12' && hours > 12) {
       straightHours = 12;
       otHours = hours - 12;
@@ -90,7 +106,7 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     totalRegularHours += straightHours;
 
     lineItems.push({
-      description: `${format(start, 'MMM dd')} - ${shift.role} shift (Straight)`,
+      description: `${format(start, 'MMM dd')} — ${shift.role} (Straight)`,
       hours: straightHours,
       rate: effectiveRate,
       amount: straightAmount
@@ -102,7 +118,7 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
       const otAmount = otHours * otRate;
       totalGross += otAmount;
       lineItems.push({
-        description: `${format(start, 'MMM dd')} - OT (1.5x)`,
+        description: `${format(start, 'MMM dd')} — OT (1.5×)`,
         hours: otHours,
         rate: otRate,
         amount: otAmount
@@ -110,13 +126,12 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     }
   }
 
-  // Weekly Overtime Calculation
+  // Weekly Overtime Calculation (>40 hrs)
   if (profile.overtimeRule === 'weekly_40' && totalRegularHours > 40) {
      const weeklyOtHours = totalRegularHours - 40;
-     const weeklyOtRate = profile.baseRate * 1.5; // Simplified blended rate logic
+     const weeklyOtRate = profile.baseRate * 1.5;
      const weeklyOtAmount = weeklyOtHours * weeklyOtRate;
      
-     // Deduct the straight pay for those hours and add OT pay
      totalGross -= (weeklyOtHours * profile.baseRate);
      totalGross += weeklyOtAmount;
      
@@ -127,9 +142,16 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
        rate: weeklyOtRate,
        amount: weeklyOtAmount - (weeklyOtHours * profile.baseRate)
      });
+
+     // Refuse-rather-than-mislead: blended rate warning
+     if (rulesApplied.has('night_differential') || rulesApplied.has('weekend_differential') || rulesApplied.has('charge_differential')) {
+       warnings.push(
+         "⚠️ Blended-rate OT: Your overtime was calculated at 1.5× your base rate. FLSA requires a weighted-average (blended) rate when multiple pay rates apply in the same week. Your actual OT premium may be slightly higher. We are adding full blended-rate support in a future update."
+       );
+     }
   }
 
-  // Baylor Pay Logic
+  // Baylor Pay Logic — work 36, get paid 40
   if (profile.baylorEnabled && totalRegularHours >= 36 && totalRegularHours < 40) {
     const baylorHours = 40 - totalRegularHours;
     const baylorAmount = baylorHours * profile.baseRate;
@@ -137,7 +159,7 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     
     rulesApplied.add('baylor_bonus');
     lineItems.push({
-      description: `Baylor Weekend Bonus (36 = 40)`,
+      description: `Baylor Weekend Bonus (36 → 40)`,
       hours: baylorHours,
       rate: profile.baseRate,
       amount: baylorAmount
@@ -147,6 +169,7 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
   return {
     expectedGross: totalGross,
     lineItems,
-    rulesApplied: Array.from(rulesApplied)
+    rulesApplied: Array.from(rulesApplied),
+    warnings
   };
 }

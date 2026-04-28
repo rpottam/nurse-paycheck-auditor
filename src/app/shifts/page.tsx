@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Plus, Calculator, Calendar, Clock, Download, FileText, Trash2, X, Share } from "lucide-react";
+import { Plus, Calculator, Calendar, Clock, Download, FileText, Trash2, X, Share, ShieldCheck, Lock, AlertTriangle, Info } from "lucide-react";
 import { calculatePayPeriod, AuditResult } from "../../lib/engine";
 import { generateDisputeReport } from "../../lib/pdfGenerator";
 import { Shift, UserProfile, PayPeriod } from "../../types";
@@ -13,6 +13,9 @@ export default function Shifts() {
   const [isAdding, setIsAdding] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [showGrossToast, setShowGrossToast] = useState(false);
+  const [grossToastDismissed, setGrossToastDismissed] = useState(false);
 
   // Pay Period Boundaries
   const today = new Date().toISOString().split('T')[0];
@@ -32,11 +35,8 @@ export default function Shifts() {
 
   // Load state on mount
   useEffect(() => {
-    // Check premium access
-    if (!localStorage.getItem("shiftcheck_premium")) {
-      window.location.href = "/upgrade";
-      return;
-    }
+    setIsPremium(!!localStorage.getItem("shiftcheck_premium"));
+    setGrossToastDismissed(!!localStorage.getItem("shiftcheck_gross_toast_dismissed"));
 
     const savedProfile = localStorage.getItem("user_profile");
     if (savedProfile) {
@@ -67,6 +67,7 @@ export default function Shifts() {
     if (profile && shifts.length > 0 && periodStart && periodEnd) {
       const result = calculatePayPeriod(profile, getPayPeriod());
       setAuditResult(result);
+      if (!grossToastDismissed) setShowGrossToast(true);
     } else {
       setAuditResult(null);
     }
@@ -133,6 +134,15 @@ export default function Shifts() {
       return;
     }
 
+    // 25% delta sanity warning
+    if (auditResult) {
+      const delta = Math.abs(auditResult.expectedGross - actual);
+      const pct = delta / auditResult.expectedGross;
+      if (pct > 0.25 && !confirm(`The difference between your expected gross ($${auditResult.expectedGross.toFixed(2)}) and what you entered ($${actual.toFixed(2)}) is ${(pct*100).toFixed(0)}%. This seems unusually large. Are you sure you entered your GROSS pay (not net take-home)?`)) {
+        return;
+      }
+    }
+
     if (!profile || shifts.length === 0) return;
 
     setIsGenerating(true);
@@ -170,15 +180,17 @@ export default function Shifts() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] font-sans selection:bg-[#0066CC] selection:text-white pb-32">
-      {/* Top Navbar */}
+      {/* Top Navbar with Trust Banner */}
       <header className="sticky top-0 z-50 bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-[#D2D2D7]/50">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-[21px] font-semibold tracking-tight text-[#1D1D1F]">Pay Period</h1>
+            <span className="hidden sm:flex items-center gap-1 text-[11px] text-[#86868B] bg-[#E5E5EA] px-2 py-0.5 rounded-full"><ShieldCheck className="w-3 h-3" /> Local only</span>
           </div>
-          <Link href="/profile" className="text-[#0066CC] text-[15px] hover:underline font-medium">
-            Profile
-          </Link>
+          <div className="flex items-center gap-4">
+            {!isPremium && <Link href="/upgrade" className="text-[#0066CC] text-[13px] font-semibold hover:underline">Upgrade</Link>}
+            <Link href="/profile" className="text-[#0066CC] text-[15px] hover:underline font-medium">Profile</Link>
+          </div>
         </div>
       </header>
 
@@ -252,25 +264,39 @@ export default function Shifts() {
               <p className="text-[13px] text-[#86868B] mt-3">Before taxes and deductions</p>
             )}
           </div>
+
+          {/* Engine Warnings */}
+          {auditResult && auditResult.warnings && auditResult.warnings.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {auditResult.warnings.map((w, i) => (
+                <div key={i} className="flex items-start gap-2 bg-[#FFF8E1] border border-[#FFE082] rounded-2xl p-3 text-[13px] text-[#5D4037]">
+                  <AlertTriangle className="w-4 h-4 text-[#F9A825] mt-0.5 flex-shrink-0" />
+                  <span>{w}</span>
+                </div>
+              ))}
+            </div>
+          )}
           
           <div className="flex flex-col sm:flex-row gap-3">
             <button 
-              onClick={() => shifts.length > 0 && periodStart && periodEnd && setShowMathModal(true)}
+              onClick={() => { if (!isPremium) { window.location.href = '/upgrade'; return; } shifts.length > 0 && periodStart && periodEnd && setShowMathModal(true); }}
               className={`flex-1 rounded-2xl py-3.5 flex justify-center items-center gap-2 text-[15px] font-medium transition-colors ${(shifts.length > 0 && periodStart && periodEnd) ? 'bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F]' : 'bg-[#e5e5ea] text-[#86868b] cursor-not-allowed'}`}
             >
+              {!isPremium && <Lock className="w-4 h-4" />}
               <Calculator className="w-5 h-5" />
               Show the Math
             </button>
             <button 
-              onClick={() => shifts.length > 0 && periodStart && periodEnd && setShowPdfModal(true)}
+              onClick={() => { if (!isPremium) { window.location.href = '/upgrade'; return; } shifts.length > 0 && periodStart && periodEnd && setShowPdfModal(true); }}
               className={`flex-1 rounded-2xl py-3.5 flex justify-center items-center gap-2 text-[15px] font-medium transition-colors ${(shifts.length > 0 && periodStart && periodEnd) ? 'bg-[#0066CC] hover:bg-[#0055B3] text-white' : 'bg-[#e5e5ea] text-[#86868b] cursor-not-allowed'}`}
             >
+              {!isPremium && <Lock className="w-4 h-4" />}
               <Download className="w-5 h-5" />
               HR Dispute Report
             </button>
           </div>
           
-          {/* Share Button for Viral Loop */}
+          {/* Share Button — FREE for viral growth */}
           <div className="mt-4 flex justify-center">
              <button 
                 onClick={generateViralGraphic}
@@ -536,6 +562,24 @@ export default function Shifts() {
               className={`w-full text-white text-[17px] font-medium py-3.5 rounded-full transition-colors flex items-center justify-center gap-2 ${isGenerating ? 'bg-[#0066cc]/50 cursor-not-allowed' : 'bg-[#0066cc] hover:bg-[#0055b3] shadow-[0_4px_14px_rgba(0,102,204,0.3)]'}`}
             >
               {isGenerating ? "Generating..." : "Generate Dispute Report"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Gross vs. Net Educational Toast */}
+      {showGrossToast && !grossToastDismissed && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] w-[90%] max-w-md bg-white rounded-[24px] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-[#e5e5ea] animate-in slide-in-from-bottom-8 duration-300">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 bg-[#0066cc]/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Info className="w-4 h-4 text-[#0066cc]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-[15px] font-semibold text-[#1d1d1f] mb-1">Gross ≠ Net</p>
+              <p className="text-[13px] text-[#86868b] leading-relaxed">ShiftCheck calculates your <strong>gross</strong> pay — the total before taxes, insurance, retirement, and other deductions. Compare this number to the gross line on your paystub, not your direct deposit.</p>
+            </div>
+            <button onClick={() => { setShowGrossToast(false); setGrossToastDismissed(true); localStorage.setItem('shiftcheck_gross_toast_dismissed', 'true'); }} className="text-[#86868b] hover:text-[#1d1d1f] flex-shrink-0">
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
