@@ -17,10 +17,12 @@ export default function SingleShiftCalculator() {
   });
 
   const [result, setResult] = useState<number | null>(null);
+  const [breakdown, setBreakdown] = useState<{label: string; hours: number; rate: number; amount: number}[]>([]);
 
   const calculate = () => {
     const base = parseFloat(data.baseRate) || 0;
     const hours = parseFloat(data.hoursWorked) || 0;
+    const items: typeof breakdown = [];
     
     let hourlyRate = base;
     
@@ -35,7 +37,20 @@ export default function SingleShiftCalculator() {
     if (data.isWeekend) {
       hourlyRate += (parseFloat(data.weekendDiff) || 0);
     }
+
+    // Build line items
+    items.push({ label: `Base rate${data.isHoliday ? ' × ' + data.holidayMultiplier + ' holiday' : ''}`, hours, rate: data.isHoliday ? base * (parseFloat(data.holidayMultiplier) || 1.5) : base, amount: hours * (data.isHoliday ? base * (parseFloat(data.holidayMultiplier) || 1.5) : base) });
     
+    if (data.isNight) {
+      const nd = parseFloat(data.nightDiff) || 0;
+      items.push({ label: 'Night differential', hours, rate: nd, amount: hours * nd });
+    }
+    if (data.isWeekend) {
+      const wd = parseFloat(data.weekendDiff) || 0;
+      items.push({ label: 'Weekend differential', hours, rate: wd, amount: hours * wd });
+    }
+
+    setBreakdown(items);
     setResult(hourlyRate * hours);
   };
 
@@ -196,23 +211,35 @@ export default function SingleShiftCalculator() {
               </span>
             </div>
             
-            <div className="p-5 bg-white border border-[#e5e5ea] rounded-2xl mb-8">
-              <div className="bg-[#f5f5f7] rounded-[24px] p-6 text-center border border-[#e5e5ea]">
-                <h3 className="text-[17px] font-semibold text-[#1d1d1f] mb-2">Want the line-by-line breakdown?</h3>
-                <p className="text-[14px] text-[#86868b] mb-4">
-                  ShiftCheck Premium audits entire 80-hour pay periods, tracks complex rules like Baylor and 8/80, and generates HR Dispute PDF Reports to get your money back.
-                </p>
-                <Link 
-                  href="/upgrade" 
-                  className="inline-block bg-[#0066cc] text-white px-6 py-2.5 rounded-full text-[15px] font-medium hover:bg-[#0055b3] transition-colors"
-                >
-                  Upgrade to Premium
-                </Link>
+            {/* Line-by-line math breakdown — FREE */}
+            <div className="bg-white border border-[#e5e5ea] rounded-2xl p-5 mb-6 text-left">
+              <h3 className="text-[13px] font-semibold text-[#86868b] uppercase tracking-widest mb-4">Show the Math</h3>
+              <div className="space-y-3">
+                {breakdown.map((item, i) => (
+                  <div key={i} className="flex justify-between items-center border-b border-[#f5f5f7] pb-2">
+                    <div className="flex flex-col">
+                      <span className="text-[15px] font-medium text-[#1d1d1f]">{item.label}</span>
+                      <span className="text-[13px] text-[#86868b]">{item.hours.toFixed(1)} hrs × ${item.rate.toFixed(2)}/hr</span>
+                    </div>
+                    <span className="text-[17px] font-semibold text-[#1d1d1f]">${item.amount.toFixed(2)}</span>
+                  </div>
+                ))}
               </div>
+              <div className="flex justify-between items-center mt-4 pt-3 border-t border-[#e5e5ea]">
+                <span className="font-semibold text-[15px]">Total</span>
+                <span className="font-semibold text-[19px]">${result.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Soft upsell */}
+            <div className="bg-white border border-[#e5e5ea] rounded-2xl p-5 mb-6 text-left">
+              <p className="text-[15px] text-[#1d1d1f] leading-relaxed">
+                <span className="font-semibold">This looks like a single shift.</span> To audit a full pay period with 8/80 overtime, Baylor, and stacking across multiple shifts, start a full audit and get an HR Dispute Report.
+              </p>
             </div>
             
             <Link 
-              href="/onboarding" 
+              href="/login" 
               className="inline-flex items-center justify-center gap-2 bg-[#1d1d1f] text-white px-8 py-4 rounded-full text-[17px] font-medium hover:bg-[#000000] transition-colors w-full sm:w-auto"
             >
               Audit full pay period
