@@ -33,7 +33,7 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
             <Link 
-              href="/onboarding" 
+              href="/login" 
               className="group flex items-center justify-center gap-2 rounded-full bg-[#0066cc] px-8 py-4 text-[17px] font-medium text-white transition-all hover:bg-[#0055b3] hover:scale-[1.02] active:scale-95"
             >
               <span>Start your audit</span>
@@ -105,6 +105,9 @@ export default function Home() {
           <div className="flex items-center justify-center gap-1.5 mb-4 font-medium">
             <ShieldCheck className="w-4 h-4 text-[#86868b]" />
             <p>Runs in your browser. No account. Nothing uploaded.</p>
+          </div>
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <Link href="/privacy" className="hover:text-[#1d1d1f] transition-colors">Privacy Policy</Link>
           </div>
           <p>Copyright © 2026 ShiftCheck Inc. All rights reserved. Not affiliated with any hospital system.</p>
         </div>
