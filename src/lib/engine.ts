@@ -129,29 +129,31 @@ export function calculatePayPeriod(profile: UserProfile, payPeriod: PayPeriod): 
     }
   }
 
-  // Weekly Overtime Calculation (>40 hrs)
+  // Weekly Overtime Calculation (>40 hrs) — FLSA Regular Rate method
+  // Per 29 CFR §778.115: regular rate = total straight-time earnings / total hours
+  // OT premium is 0.5× regular rate on hours over 40 (half-time method)
   if (profile.overtimeRule === 'weekly_40' && totalRegularHours > 40) {
      const weeklyOtHours = totalRegularHours - 40;
-     const weeklyOtRate = profile.baseRate * 1.5;
-     const weeklyOtAmount = weeklyOtHours * weeklyOtRate;
      
-     totalGross -= (weeklyOtHours * profile.baseRate);
+     // Compute FLSA regular rate: total straight-time earnings ÷ total hours worked
+     const totalStraightEarnings = lineItems
+       .filter(li => !li.description.includes('OT'))
+       .reduce((sum, li) => sum + li.amount, 0);
+     const regularRate = totalStraightEarnings / totalRegularHours;
+     
+     // OT premium is 0.5× regular rate (straight time already paid)
+     const otPremium = regularRate * 0.5;
+     const weeklyOtAmount = weeklyOtHours * otPremium;
+     
      totalGross += weeklyOtAmount;
      
      rulesApplied.add('weekly_40_overtime');
      lineItems.push({
-       description: `Weekly OT (>40 hrs)`,
+       description: `Weekly OT (>40 hrs) — FLSA regular rate $${regularRate.toFixed(2)}/hr`,
        hours: weeklyOtHours,
-       rate: weeklyOtRate,
-       amount: weeklyOtAmount - (weeklyOtHours * profile.baseRate)
+       rate: regularRate * 1.5,
+       amount: weeklyOtAmount
      });
-
-     // Refuse-rather-than-mislead: blended rate warning
-     if (rulesApplied.has('night_differential') || rulesApplied.has('weekend_differential') || rulesApplied.has('charge_differential')) {
-       warnings.push(
-         "⚠️ Blended-rate OT: Your overtime was calculated at 1.5× your base rate. FLSA requires a weighted-average (blended) rate when multiple pay rates apply in the same week. Your actual OT premium may be slightly higher. We are adding full blended-rate support in a future update."
-       );
-     }
   }
 
   // Baylor Pay Logic — work 36, get paid 40

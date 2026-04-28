@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, Calculator, FileText, Scale, ArrowRight } from "lucide-react";
+import { ShieldCheck, Calculator, FileText, Scale, ArrowRight, HelpCircle } from "lucide-react";
 
 export default function Home() {
   return (
@@ -33,7 +33,7 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
             <Link 
-              href="/login" 
+              href="/onboarding" 
               className="group flex items-center justify-center gap-2 rounded-full bg-[#0066cc] px-8 py-4 text-[17px] font-medium text-white transition-all hover:bg-[#0055b3] hover:scale-[1.02] active:scale-95"
             >
               <span>Start your audit</span>
@@ -147,11 +147,14 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Social Proof Placeholder */}
+        {/* CTA Section */}
         <section className="w-full bg-white py-20 border-t border-[#d2d2d7]/50">
           <div className="max-w-3xl mx-auto px-6 text-center">
-            <p className="text-[#86868b] text-[15px] italic">"Recovered $147 in missed weekend differentials on my first audit."</p>
-            <p className="text-[13px] text-[#86868b] mt-2">— Beta tester, Kaiser NorCal RN (anonymized)</p>
+            <h2 className="text-[28px] font-semibold tracking-tight mb-4">Ready to audit your pay?</h2>
+            <p className="text-[#86868b] text-[17px] mb-8">No account needed. Nothing leaves your browser.</p>
+            <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0066cc] px-8 py-4 text-[17px] font-medium text-white transition-all hover:bg-[#0055b3]">
+              Start your audit <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </section>
       </main>
@@ -161,7 +164,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-6 text-center text-[12px] text-[#86868b]">
           <div className="flex items-center justify-center gap-1.5 mb-4 font-medium">
             <ShieldCheck className="w-4 h-4 text-[#86868b]" />
-            <p>Runs in your browser. No account. Nothing uploaded.</p>
+            <p>Runs in your browser. No account required. Nothing uploaded.</p>
           </div>
           <div className="flex items-center justify-center gap-4 mb-4">
             <Link href="/privacy" className="hover:text-[#1d1d1f] transition-colors">Privacy Policy</Link>

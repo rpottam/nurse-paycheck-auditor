@@ -92,9 +92,9 @@ export default function Methodology() {
                 <p className="text-[12px] text-[#86868b] mt-2">Authority: Cal. Lab. Code §511</p>
               </div>
               <div className="bg-[#f5f5f7] rounded-2xl p-5">
-                <h3 className="font-semibold text-[15px] mb-1">Weekly &gt;40 hours</h3>
-                <p className="text-[14px] text-[#86868b]">Standard FLSA overtime. All hours above 40 in a workweek are paid at 1.5× base rate.</p>
-                <p className="text-[12px] text-[#86868b] mt-2">Authority: 29 USC §207(a)(1); 29 CFR §778.110</p>
+                <h3 className="font-semibold text-[15px] mb-1">Weekly &gt;40 hours (FLSA Regular Rate)</h3>
+                <p className="text-[14px] text-[#86868b]">Hours above 40 in a workweek earn an OT premium. We compute the FLSA "regular rate" as total straight-time earnings ÷ total hours worked, then apply a 0.5× premium on OT hours (half-time method). This correctly handles weeks where multiple pay rates apply (e.g., night shifts + day shifts).</p>
+                <p className="text-[12px] text-[#86868b] mt-2">Authority: 29 USC §207(a)(1); 29 CFR §778.110; 29 CFR §778.115 (regular rate with multiple rates)</p>
               </div>
               <div className="bg-[#f5f5f7] rounded-2xl p-5">
                 <h3 className="font-semibold text-[15px] mb-1">FLSA 8/80 Rule</h3>
